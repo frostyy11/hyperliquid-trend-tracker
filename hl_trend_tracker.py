@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Hyperliquid Perps Trend Tracker
-Tracks 24h, 7d, and 14d price % changes for all perps on Hyperliquid.
+Tracks 24h, 7d, 14d, and 30d price % changes for all perps on Hyperliquid.
 """
 
 import json
@@ -107,7 +107,7 @@ def _build_cg_cache(symbols: list[str]) -> None:
                 "order": "market_cap_desc",
                 "per_page": per_page,
                 "page": page,
-                "price_change_percentage": "24h,7d,14d",
+                "price_change_percentage": "24h,7d,14d,30d",
                 "sparkline": "false",
             })
         except Exception as e:
@@ -130,7 +130,7 @@ def _build_cg_cache(symbols: list[str]) -> None:
             rows = cg_get("coins/markets", {
                 "vs_currency": "usd",
                 "ids": cg_id,
-                "price_change_percentage": "24h,7d,14d",
+                "price_change_percentage": "24h,7d,14d,30d",
                 "sparkline": "false",
             })
             if rows:
@@ -148,12 +148,13 @@ def fetch_cg_changes(symbols: list[str]) -> dict[str, dict]:
         key = sym.upper()
         row = _CG_MARKET_CACHE.get(key)
         if row is None:
-            result[sym] = {"24h": None, "7d": None, "14d": None}
+            result[sym] = {"24h": None, "7d": None, "14d": None, "30d": None}
             continue
         result[sym] = {
             "24h": row.get("price_change_percentage_24h"),
             "7d":  row.get("price_change_percentage_7d_in_currency"),
             "14d": row.get("price_change_percentage_14d_in_currency"),
+            "30d": row.get("price_change_percentage_30d_in_currency"),
         }
     return result
 
@@ -183,22 +184,22 @@ def print_header(count: int, last_update: str, filter_str: str = ""):
     print(f"{DIM}  {count} assets  •  updated {last_update}  •  Ctrl+C to quit{RESET}")
     print(f"{BOLD}{CYAN}{'━' * width}{RESET}")
     print(
-        f"  {BOLD}{'ASSET':<10} {'24h':>10} {'7d':>10} {'14d':>10}{RESET}"
+        f"  {BOLD}{'ASSET':<10} {'24h':>10} {'7d':>10} {'14d':>10} {'30d':>10}{RESET}"
     )
-    print(f"  {'─' * 44}")
+    print(f"  {'─' * 55}")
 
 
 def print_row(rank: int, coin: str, price: float, p24: Optional[float],
-              p7: Optional[float], p14: Optional[float]):
+              p7: Optional[float], p14: Optional[float], p30: Optional[float]):
     print(
         f"  {DIM}{rank:>3}.{RESET} {BOLD}{WHITE}{coin:<9}{RESET}"
-        f" {color_pct(p24):>10}  {color_pct(p7):>10}  {color_pct(p14):>10}"
+        f" {color_pct(p24):>10}  {color_pct(p7):>10}  {color_pct(p14):>10}  {color_pct(p30):>10}"
     )
 
 
 def print_footer(sort_key: str, ascending: bool):
     print(f"\n  {DIM}Sort: {sort_key} {'↑' if ascending else '↓'}  "
-          f"│  Keys: [24h] [7d] [14d] [coin]  │  Refresh: 60s{RESET}\n")
+          f"│  Keys: [24h] [7d] [14d] [30d] [coin]  │  Refresh: 60s{RESET}\n")
 
 
 def collect_data(assets: list[str], current_prices: dict[str, float],
@@ -220,6 +221,7 @@ def collect_data(assets: list[str], current_prices: dict[str, float],
             "24h": c.get("24h"),
             "7d":  c.get("7d"),
             "14d": c.get("14d"),
+            "30d": c.get("30d"),
         })
     return results
 
@@ -245,7 +247,7 @@ def display(data: list[dict], sort_key: str, ascending: bool,
     print_header(len(rows), ts, filter_str)
     for i, row in enumerate(rows, 1):
         print_row(i, row["coin"], row["price"],
-                  row["24h"], row["7d"], row["14d"])
+                  row["24h"], row["7d"], row["14d"], row["30d"])
     print_footer(sort_key, ascending)
 
 
@@ -298,7 +300,7 @@ Examples:
   python hl_trend_tracker.py                        # one-shot, sort by 24h
   python hl_trend_tracker.py --live                 # auto-refresh every 60s
   python hl_trend_tracker.py --sort 7d --top 20     # top 20 by 7-day change
-  python hl_trend_tracker.py --sort 14d --asc       # worst 14d performers first
+  python hl_trend_tracker.py --sort 30d --top 10     # top 10 by 30-day change
   python hl_trend_tracker.py --filter BTC           # show only BTC
   python hl_trend_tracker.py --live --interval 120  # refresh every 2 minutes
 
@@ -311,7 +313,7 @@ Note: % changes come from CoinGecko (fast, 3 API calls total).
                         help="Auto-refresh mode (default: single-shot)")
     parser.add_argument("--interval", type=int, default=60,
                         help="Refresh interval in seconds (live mode, default: 60)")
-    parser.add_argument("--sort", choices=["24h", "7d", "14d", "coin"],
+    parser.add_argument("--sort", choices=["24h", "7d", "14d", "30d", "coin"],
                         default="24h",
                         help="Column to sort by (default: 24h)")
     parser.add_argument("--asc", dest="ascending", action="store_true",
